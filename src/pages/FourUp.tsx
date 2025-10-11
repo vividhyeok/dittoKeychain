@@ -3,7 +3,7 @@ import Sheet from '../components/Sheet';
 import Slot from '../components/Slot';
 import { PartSpec } from '../types';
 import { staffStore } from '../utils/staffStore';
-import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx, EXPORT_NUDGE, PRINT_CAL } from '../utils/printSpecs';
+import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx, PRINT_CAL } from '../utils/printSpecs';
 
 const FourUp = () => {
   // 스태프 모드: 편집 불가, 스캔한 설정 그대로 배치
@@ -71,13 +71,14 @@ const FourUp = () => {
         const rW = vpW; const rH = vpH;
         const iw = (img as HTMLImageElement).naturalWidth || img.width;
         const ih = (img as HTMLImageElement).naturalHeight || img.height;
-        // 내보내기에서는 cover로 채워서 파란 점선(뷰포트)와 이미지 경계가 맞닿도록 함
-        const scaleCover = Math.max(rW / iw, rH / ih) * scale;
-        const drawW = iw * scaleCover;
-        const drawH = ih * scaleCover;
-        // 좌상단 기준 배치: 기본은 viewport 좌상단에 붙여 빈 공간 제거, 편집 이동과 누지는 추가
-        const imgX = x + txPx + toPx(EXPORT_NUDGE.xMm);
-        const imgY = y + tyPx + toPx(EXPORT_NUDGE.yMm);
+  // 화면과 동일하게 contain + 중앙 정렬, 사용자 scale/이동을 그대로 반영
+  const scaleContain = Math.min(rW / iw, rH / ih) * scale;
+  const drawW = iw * scaleContain;
+  const drawH = ih * scaleContain;
+  const vcx = x + vpW / 2;
+  const vcy = y + vpH / 2;
+  const imgX = vcx - drawW / 2 + txPx;
+  const imgY = vcy - drawH / 2 + tyPx;
         ctx.drawImage(img, imgX, imgY, drawW, drawH);
         ctx.restore();
 
