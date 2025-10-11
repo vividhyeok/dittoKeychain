@@ -7,10 +7,12 @@ import { staffStore } from '../utils/staffStore';
 const FourUp = () => {
   // 스태프 모드: 편집 불가, 스캔한 설정 그대로 배치
   const scanned = useMemo(() => staffStore.getFourUp() || [], []);
-  const AFront = scanned[0]?.front as PartSpec | undefined;
-  const BFront = scanned[1]?.front as PartSpec | undefined;
-  const CFront = scanned[2]?.front as PartSpec | undefined;
-  const DFront = scanned[3]?.front as PartSpec | undefined;
+  const A = scanned[0] as any | undefined;
+  const B = scanned[1] as any | undefined;
+  const AFront = A?.front as PartSpec | undefined;
+  const ABack = A?.back as PartSpec | undefined;
+  const BFront = B?.front as PartSpec | undefined;
+  const BBack = B?.back as PartSpec | undefined;
 
 
   const downloadPng = async () => {
@@ -49,10 +51,11 @@ const FourUp = () => {
       ctx.restore();
     };
 
-    await drawPart(AFront!, 2, 2, 35, 45);
-    await drawPart(BFront!, 44, 2, 35, 45);
-    await drawPart(CFront!, 2, 54, 35, 45);
-    await drawPart(DFront!, 44, 54, 35, 45);
+  // 좌상단: A 앞, 우상단: A 뒤, 좌하단: B 앞, 우하단: B 뒤
+  await drawPart(AFront!, 2, 2, 35, 45);
+  await drawPart(ABack!, 44, 2, 35, 45);
+  await drawPart(BFront!, 2, 54, 35, 45);
+  await drawPart(BBack!, 44, 54, 35, 45);
 
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/jpeg', 0.92);
@@ -74,16 +77,16 @@ const FourUp = () => {
       </div>
       <Sheet responsive origin="top-left">
         <div style={{ position: 'absolute', left: '2mm', top: '2mm' }}>
-          <Slot anchor="top-left" part="4x5-front" spec={AFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
+          <Slot anchor="top-left" part={AFront ? AFront.part : '4x5-front'} spec={AFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
         <div style={{ position: 'absolute', left: '44mm', top: '2mm' }}>
-          <Slot anchor="top-left" part="4x5-front" spec={BFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
+          <Slot anchor="top-left" part={ABack ? ABack.part : '4x5-back'} spec={ABack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
         <div style={{ position: 'absolute', left: '2mm', top: '54mm' }}>
-          <Slot anchor="top-left" part="4x5-front" spec={CFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
+          <Slot anchor="top-left" part={BFront ? BFront.part : '4x5-front'} spec={BFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
         <div style={{ position: 'absolute', left: '44mm', top: '54mm' }}>
-          <Slot anchor="top-left" part="4x5-front" spec={DFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
+          <Slot anchor="top-left" part={BBack ? BBack.part : '4x5-back'} spec={BBack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
       </Sheet>
     </div>
