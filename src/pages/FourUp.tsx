@@ -102,18 +102,26 @@ const FourUp = () => {
       };
 
   // 좌상단: A 앞, 우상단: A 뒤, 좌하단: B 앞, 우하단: B 뒤
-      const OM = SHEET.outerMarginMm; // 외곽 여백
-      const GAPMM = GAP.tileMm; // 타일 간격
-      const VPW = FOUR_FIVE.viewportW;
-      const VPH = FOUR_FIVE.viewportH;
-      const X1 = OM;
-      const X2 = OM + VPW + GAPMM;
-      const Y1 = OM;
-      const Y2 = OM + VPH + GAPMM + (FOUR_FIVE.trimH - VPH); // 타일 간 H: 보이는 창 기준 + 트림-창 차이를 더해 실제 슬롯 위치와 일치
-      await drawPart(AFront, X1, Y1, VPW, VPH, 'A-앞');
-      await drawPart(ABack, X2, Y1, VPW, VPH, 'A-뒤');
-      await drawPart(BFront, X1, Y2, VPW, VPH, 'B-앞');
-      await drawPart(BBack, X2, Y2, VPW, VPH, 'B-뒤');
+  const OM = SHEET.outerMarginMm; // 외곽 여백
+  const GAPMM = GAP.tileMm; // 타일 간격
+  const BW = FOUR_FIVE.bleedW, BH = FOUR_FIVE.bleedH;
+  const VPW = FOUR_FIVE.viewportW, VPH = FOUR_FIVE.viewportH;
+  const insetX = (BW - VPW) / 2; // 44-35 = 9 → 4.5mm
+  const insetY = (BH - VPH) / 2; // 54-45 = 9 → 4.5mm
+  // 슬롯(블리드) 기준 좌상단
+  const SX1 = OM;
+  const SY1 = OM;
+  const SX2 = OM + BW + GAPMM;
+  const SY2 = OM + BH + GAPMM;
+  // 뷰포트(클리핑) 좌상단 = 슬롯 좌상단 + inset
+  const VX1 = SX1 + insetX;
+  const VY1 = SY1 + insetY;
+  const VX2 = SX2 + insetX;
+  const VY2 = SY2 + insetY;
+  await drawPart(AFront, VX1, VY1, VPW, VPH, 'A-앞');
+  await drawPart(ABack, VX2, VY1, VPW, VPH, 'A-뒤');
+  await drawPart(BFront, VX1, VY2, VPW, VPH, 'B-앞');
+  await drawPart(BBack, VX2, VY2, VPW, VPH, 'B-뒤');
 
       // toDataURL 시 CORS로 캔버스가 오염되면 예외가 발생할 수 있음
       const a = document.createElement('a');
@@ -148,13 +156,13 @@ const FourUp = () => {
         <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm}mm` }}>
           <Slot anchor="top-left" part={AFront ? AFront.part : '4x5-front'} spec={AFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm + FOUR_FIVE.viewportW + GAP.tileMm}mm`, top: `${SHEET.outerMarginMm}mm` }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm + FOUR_FIVE.bleedW + GAP.tileMm}mm`, top: `${SHEET.outerMarginMm}mm` }}>
           <Slot anchor="top-left" part={ABack ? ABack.part : '4x5-back'} spec={ABack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm + FOUR_FIVE.viewportH + GAP.tileMm + (FOUR_FIVE.trimH - FOUR_FIVE.viewportH)}mm` }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm + FOUR_FIVE.bleedH + GAP.tileMm}mm` }}>
           <Slot anchor="top-left" part={BFront ? BFront.part : '4x5-front'} spec={BFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm + FOUR_FIVE.viewportW + GAP.tileMm}mm`, top: `${SHEET.outerMarginMm + FOUR_FIVE.viewportH + GAP.tileMm + (FOUR_FIVE.trimH - FOUR_FIVE.viewportH)}mm` }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm + FOUR_FIVE.bleedW + GAP.tileMm}mm`, top: `${SHEET.outerMarginMm + FOUR_FIVE.bleedH + GAP.tileMm}mm` }}>
           <Slot anchor="top-left" part={BBack ? BBack.part : '4x5-back'} spec={BBack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
       </Sheet>
