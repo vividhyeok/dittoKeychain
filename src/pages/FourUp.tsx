@@ -32,17 +32,22 @@ const FourUp = () => {
 
       const failed: string[] = [];
       const loadImage = (src: string) => new Promise<HTMLImageElement | null>((resolve) => {
-        // 1) anonymous 시도 → 실패 시 2) 기본 시도
-        const tryLoad = (withCORS: boolean) => {
-          const im = new Image();
-          if (withCORS) im.crossOrigin = 'anonymous';
-          im.onload = () => resolve(im);
-          im.onerror = () => resolve(null);
-          im.src = src;
-        };
-        tryLoad(true);
-        // 두번째 시도는 첫 시도에서 onerror 되었을 때만 의미 있으나, 간단히 타임아웃으로 후속 시도
-        setTimeout(() => tryLoad(false), 0);
+        const proxied = (() => {
+          try {
+            const u = new URL(src);
+            if (u.origin === window.location.origin || u.origin === 'null') return src; // 같은 출처나 data/blob 등은 그대로
+            const p = new URL('/api/proxy', window.location.origin);
+            p.searchParams.set('url', src);
+            return p.toString();
+          } catch {
+            return src; // 상대경로 등은 그대로
+          }
+        })();
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = proxied;
       });
 
       const drawPart = async (p: PartSpec | undefined, xMm: number, yMm: number, vpWmm: number, vpHmm: number, label: string) => {
