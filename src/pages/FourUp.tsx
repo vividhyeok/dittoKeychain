@@ -3,7 +3,7 @@ import Sheet from '../components/Sheet';
 import Slot from '../components/Slot';
 import { PartSpec } from '../types';
 import { staffStore } from '../utils/staffStore';
-import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx } from '../utils/printSpecs';
+import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx, EXPORT_NUDGE } from '../utils/printSpecs';
 
 const FourUp = () => {
   // 스태프 모드: 편집 불가, 스캔한 설정 그대로 배치
@@ -71,8 +71,8 @@ const FourUp = () => {
         const drawW = img.width * scaleContain * scale;
         const drawH = img.height * scaleContain * scale;
         // viewport 중앙 정렬
-        const imgX = x + (vpW - drawW) / 2 + txPx;
-        const imgY = y + (vpH - drawH) / 2 + tyPx;
+  const imgX = x + (vpW - drawW) / 2 + txPx + toPx(EXPORT_NUDGE.xMm);
+  const imgY = y + (vpH - drawH) / 2 + tyPx + toPx(EXPORT_NUDGE.yMm);
         ctx.drawImage(img, imgX, imgY, drawW, drawH);
         ctx.restore();
 

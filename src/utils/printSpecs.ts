@@ -41,3 +41,9 @@ export const CD = {
 };
 
 export const mmToPx = (mm: number, dpi: number = DPI) => Math.round((mm / 25.4) * dpi);
+
+// 내보내기 시 이미지가 너무 좌상단으로 느껴질 때, 미세 오프셋(우측/하단) 적용
+export const EXPORT_NUDGE = {
+  xMm: 0.5, // 오른쪽으로 0.5mm
+  yMm: 0.5, // 아래로 0.5mm
+};
