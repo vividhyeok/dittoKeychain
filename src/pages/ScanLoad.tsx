@@ -1,50 +1,66 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/library';
-import { decodeFromScan } from '../utils/encode';
+import { decodeFromScan, extractEncodedFromText } from '../utils/encode';
 import { staffStore } from '../utils/staffStore';
 import { useNavigate } from 'react-router-dom';
 import { Payload4x5, Payload } from '../types';
 
 const ScanLoad = () => {
   const [payloads, setPayloads] = useState<Payload[]>([]);
-  const [imageUrl, setImageUrl] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [lastHit, setLastHit] = useState<{ type: 'cd' | '4x5'; ts: number } | null>(null);
   const navigate = useNavigate();
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const seenRef = useRef<Set<string>>(new Set());
 
-  const scan = async () => {
+  const startScan = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       alert('카메라가 지원되지 않는 브라우저입니다. HTTPS에서 시도하세요.');
       return;
     }
     if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader();
     try {
-      const result = await readerRef.current.decodeOnceFromVideoDevice(undefined, 'video');
-      const text = result.getText();
-      const payload = decodeFromScan(text) as Payload;
-      if (payload?.tpl === '4x5' || payload?.tpl === 'cd') {
-        setPayloads(prev => [...prev, payload]);
-      } else {
-        console.warn('지원하지 않는 페이로드', payload);
-      }
+      await readerRef.current.decodeFromVideoDevice(null, 'video', (result, err) => {
+        if (result) {
+          const raw = result.getText();
+          const key = extractEncodedFromText(raw) || raw;
+          if (key && !seenRef.current.has(key)) {
+            seenRef.current.add(key);
+            try {
+              const payload = decodeFromScan(raw) as Payload;
+              if (payload?.tpl === '4x5' || payload?.tpl === 'cd') {
+                setPayloads(prev => [...prev, payload]);
+                setLastHit({ type: payload.tpl, ts: Date.now() });
+              }
+            } catch (e) {
+              console.warn('디코딩 실패:', e);
+            }
+          }
+        }
+        if (err && !(err instanceof Error && (err as any).name === 'NotFoundException')) {
+          // 잔여 에러는 로그만
+          // console.error(err);
+        }
+      });
+      setIsScanning(true);
     } catch (err) {
-      console.error(err);
-      alert('카메라 접근 실패: ' + (err as Error).message);
+      console.error('카메라 시작 실패:', err);
+      alert('카메라 시작 실패: ' + (err as Error).message);
     }
   };
 
-  const loadFromUrl = () => {
-    if (imageUrl) {
-      // 간단히 front로 설정
-      const payload: Payload4x5 = {
-        v: 1,
-        tpl: '4x5',
-        front: { part: '4x5-front', img: imageUrl, tx: 0, ty: 0, scale: 1, rot: 0 },
-        back: { part: '4x5-back', img: imageUrl, tx: 0, ty: 0, scale: 1, rot: 0 }
-      };
-      setPayloads(prev => [...prev, payload]);
-      setImageUrl('');
+  const stopScan = () => {
+    if (readerRef.current) {
+      readerRef.current.reset();
     }
+    setIsScanning(false);
   };
+
+  useEffect(() => {
+    return () => {
+      if (readerRef.current) readerRef.current.reset();
+    };
+  }, []);
 
   const goPreview = () => {
     // 우선순위: cd payload가 있으면 CD 미리보기로, 아니면 4x5가 2개 있으면 FourUp으로
@@ -63,28 +79,62 @@ const ScanLoad = () => {
     alert('미리보기를 위해서는 CD 1개 또는 4x5 2개가 필요합니다.');
   };
 
+  const resetAll = () => {
+    setPayloads([]);
+    seenRef.current.clear();
+    setLastHit(null);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-800 text-white p-4">
-      <h1 className="text-xl font-bold mb-4">이미지 불러오기</h1>
-      <div className="mb-4">
-        <input
-          type="text"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="이미지 URL 입력"
-          className="w-full p-2 bg-gray-700 text-white rounded mb-2"
-        />
-        <div className="flex gap-2">
-          <button onClick={loadFromUrl} className="bg-green-600 text-white px-4 py-2 rounded">URL에서 불러오기</button>
-          <button onClick={scan} className="bg-blue-600 text-white px-4 py-2 rounded">QR 인식</button>
-          <button onClick={goPreview} className="bg-gray-600 text-white px-4 py-2 rounded">미리보기 로드</button>
+    <div className="page p-4">
+      <div className="card p-4 mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="heading">QR 인식</h1>
+          <div className="flex gap-2">
+            {!isScanning ? (
+              <button className="btn btn-primary" onClick={startScan}>스캔 시작</button>
+            ) : (
+              <button className="btn btn-outline" onClick={stopScan}>스캔 중지</button>
+            )}
+            <button className="btn btn-secondary" onClick={resetAll}>초기화</button>
+            <button className="btn btn-primary" onClick={goPreview} disabled={!(payloads.find(p=>p.tpl==='cd') || payloads.filter(p=>p.tpl==='4x5').length>=2)}>
+              미리보기 이동
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 items-start">
+          <div className="relative">
+            <video id="video" width="480" height="320" className="w-full max-w-lg border border-white/10 rounded-lg" playsInline></video>
+            {lastHit && Date.now() - lastHit.ts < 1500 && (
+              <div className="absolute top-2 right-2 bg-emerald-500 text-white text-sm px-2 py-1 rounded-md shadow">
+                {lastHit.type === 'cd' ? 'CD 저장됨' : '4x5 저장됨'}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-slate-300">수집됨</span>
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-700 text-white">CD {payloads.filter(p=>p.tpl==='cd').length}</span>
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-700 text-white">4x5 {payloads.filter(p=>p.tpl==='4x5').length}</span>
+            </div>
+            <div className="h-40 overflow-auto border border-white/10 rounded-md p-2 text-sm text-slate-300">
+              {payloads.length === 0 ? (
+                <div className="text-slate-500">아직 인식된 QR이 없습니다.</div>
+              ) : (
+                <ul className="space-y-1">
+                  {payloads.map((p, i) => (
+                    <li key={i} className="flex items-center justify-between">
+                      <span>{p.tpl === 'cd' ? 'CD' : '4x5'} #{i+1}</span>
+                      <span className="text-xs text-slate-500">v{p.v}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">HTTPS 환경에서만 카메라 사용이 가능합니다. 브라우저 권한을 허용해 주세요.</p>
+          </div>
         </div>
       </div>
-      <div className="mb-4">
-        <video id="video" width="480" height="320" className="border mb-2 w-full max-w-md" playsInline></video>
-        <p className="text-sm text-gray-300">카메라가 보이지 않으면 HTTPS 환경(Vercel 등)에서 접속하거나 주소창의 카메라 권한을 확인하세요.</p>
-      </div>
-      <div className="mt-2 text-sm text-gray-300">수집됨: CD {payloads.filter(p=>p.tpl==='cd').length} / 4x5 {payloads.filter(p=>p.tpl==='4x5').length}</div>
     </div>
   );
 };
