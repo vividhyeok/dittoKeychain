@@ -66,18 +66,16 @@ const FourUp = () => {
         // object-fit: contain + mm 기반 transform 적용
         const txPx = toPx(p.tx), tyPx = toPx(p.ty);
         const scale = p.scale || 1;
-  const rW = vpW; const rH = vpH;
-  const iw = (img as HTMLImageElement).naturalWidth || img.width;
-  const ih = (img as HTMLImageElement).naturalHeight || img.height;
-  const scaleContain = Math.min(rW / iw, rH / ih);
-  const drawW = iw * scaleContain * scale;
-  const drawH = ih * scaleContain * scale;
-  // viewport 중앙 좌표
-  const vcx = x + vpW / 2;
-  const vcy = y + vpH / 2;
-  // 중앙 정렬: 이미지 중심을 viewport 중심에 맞춘 뒤, tx/ty(편집 이동 mm)와 누지 적용
-  const imgX = vcx - drawW / 2 + txPx + toPx(EXPORT_NUDGE.xMm);
-  const imgY = vcy - drawH / 2 + tyPx + toPx(EXPORT_NUDGE.yMm);
+        const rW = vpW; const rH = vpH;
+        const iw = (img as HTMLImageElement).naturalWidth || img.width;
+        const ih = (img as HTMLImageElement).naturalHeight || img.height;
+        // 내보내기에서는 cover로 채워서 파란 점선(뷰포트)와 이미지 경계가 맞닿도록 함
+        const scaleCover = Math.max(rW / iw, rH / ih) * scale;
+        const drawW = iw * scaleCover;
+        const drawH = ih * scaleCover;
+        // 좌상단 기준 배치: 기본은 viewport 좌상단에 붙여 빈 공간 제거, 편집 이동과 누지는 추가
+        const imgX = x + txPx + toPx(EXPORT_NUDGE.xMm);
+        const imgY = y + tyPx + toPx(EXPORT_NUDGE.yMm);
         ctx.drawImage(img, imgX, imgY, drawW, drawH);
         ctx.restore();
 
@@ -142,12 +140,11 @@ const FourUp = () => {
 
   return (
     <div className="page p-4">
-  <div className="card p-4 mb-3 no-print">
+      <div className="card p-4 mb-3 no-print">
         <div className="flex items-center justify-between">
           <h1 className="heading">4-up</h1>
           <div className="flex gap-2">
             <a href="/s/load" className="btn btn-outline">불러오기</a>
-            <button onClick={() => window.print()} className="btn btn-secondary">미리보기(인쇄)</button>
             <button onClick={downloadPng} className="btn btn-primary">이미지로 저장</button>
           </div>
         </div>
