@@ -25,8 +25,11 @@ const FourUp = () => {
       const H = toPx(SHEET.heightMm);
       const canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
-      const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d');
       if (!ctx) return;
+  ctx.imageSmoothingEnabled = true;
+  // @ts-ignore
+  if ('imageSmoothingQuality' in ctx) (ctx as any).imageSmoothingQuality = 'high';
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
 
@@ -67,9 +70,29 @@ const FourUp = () => {
         const scaleContain = Math.min(rW / img.width, rH / img.height);
         const drawW = img.width * scaleContain * scale;
         const drawH = img.height * scaleContain * scale;
-        const cx = x + (vpW - drawW) / 2 + txPx;
-        const cy = y + (vpH - drawH) / 2 + tyPx;
-        ctx.drawImage(img, cx, cy, drawW, drawH);
+        // viewport 중앙 정렬
+        const imgX = x + (vpW - drawW) / 2 + txPx;
+        const imgY = y + (vpH - drawH) / 2 + tyPx;
+        ctx.drawImage(img, imgX, imgY, drawW, drawH);
+        ctx.restore();
+
+        // 가이드(트림/세이프) 오버레이: viewport 중심을 기준으로 그리기
+        const cx = x + vpW / 2;
+        const cy = y + vpH / 2;
+        // 트림(빨강, 40x50mm)
+        ctx.save();
+        ctx.strokeStyle = '#C81E1E';
+        ctx.lineWidth = Math.max(1, Math.round(toPx(0.2))); // 약 0.2mm
+        const trimW = toPx(FOUR_FIVE.trimW);
+        const trimH = toPx(FOUR_FIVE.trimH);
+        ctx.strokeRect(cx - trimW / 2, cy - trimH / 2, trimW, trimH);
+        ctx.restore();
+        // 세이프(파랑 점선, 35x45mm)
+        ctx.save();
+        ctx.strokeStyle = '#1D4ED8';
+        ctx.setLineDash([toPx(1), toPx(1)]);
+        ctx.lineWidth = Math.max(1, Math.round(toPx(0.2)));
+        ctx.strokeRect(cx - vpW / 2, cy - vpH / 2, vpW, vpH);
         ctx.restore();
       };
 
