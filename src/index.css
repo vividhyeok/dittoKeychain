@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@page { size: 100mm 148mm; margin: 0; }
+@media print {
+	.no-print, .guides, nav { display: none !important; }
+	body { background: white !important; }
+}
+
+/* Design System: 버튼/카드/페이지 컨테이너 */
+@layer components {
+	.page {
+		@apply min-h-screen bg-slate-900 text-slate-100;
+	}
+	.card {
+		@apply bg-slate-800/70 backdrop-blur rounded-2xl shadow border border-white/10;
+	}
+	.heading {
+		@apply text-2xl font-bold text-slate-100;
+	}
+	.subheading {
+		@apply text-sm text-slate-300;
+	}
+	.btn {
+		@apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors border border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400/40 focus:ring-offset-slate-900;
+	}
+	.btn-primary {
+		@apply bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700;
+	}
+	.btn-secondary {
+		@apply bg-slate-700 text-slate-100 hover:bg-slate-600 active:bg-slate-700;
+	}
+	.btn-outline {
+		@apply bg-transparent text-slate-100 border border-slate-600 hover:bg-slate-800/60;
+	}
+	.btn-ghost {
+		@apply bg-transparent text-slate-200 hover:bg-white/10;
+	}
+	.btn-danger {
+		@apply bg-red-600 text-white hover:bg-red-500;
+	}
+	.btn-icon {
+		@apply w-11 h-11 md:w-12 md:h-12 bg-white text-slate-800 rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-95;
+	}
+}

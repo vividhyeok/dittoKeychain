@@ -1,0 +1,7 @@
+node_modules/
+.dist/
+.dist-ssr/
+dist/
+.env*
+.DS_Store
+.vercel
