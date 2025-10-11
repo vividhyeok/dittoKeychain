@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { PartSpec } from '../types';
 import { useGesture } from '../utils/gesture';
+import { FOUR_FIVE, CD } from '../utils/printSpecs';
 
 interface SlotProps {
   part: PartSpec['part'];
@@ -36,28 +37,31 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
   let isCircle = false;
 
   if (part === 'cd-disc') {
-    trimWidth = trimHeight = 40; // Ø40mm
-    bleedWidth = bleedHeight = 44; // Ø44mm
-    safeWidth = safeHeight = 34; // Ø34mm (안전 3mm)
+    trimWidth = trimHeight = CD.disc.trimD; // Ø40mm
+    bleedWidth = bleedHeight = CD.disc.bleedD; // Ø44mm
+    safeWidth = safeHeight = CD.disc.safeD; // Ø34mm
     isCircle = true;
   } else if (part === 'case-front') {
-    trimWidth = trimHeight = 40;
-    bleedWidth = bleedHeight = 44;
-    safeWidth = safeHeight = 34;
+    trimWidth = CD.caseFront.trimW;
+    trimHeight = CD.caseFront.trimH;
+    bleedWidth = CD.caseFront.bleedW;
+    bleedHeight = CD.caseFront.bleedH;
+    safeWidth = CD.caseFront.safeW;
+    safeHeight = CD.caseFront.safeH;
   } else if (part === 'case-back') {
-    trimWidth = 49;
-    trimHeight = 37;
-    bleedWidth = 53;
-    bleedHeight = 41;
-    safeWidth = 43;
-    safeHeight = 31;
+    trimWidth = CD.caseBack.trimW;
+    trimHeight = CD.caseBack.trimH;
+    bleedWidth = CD.caseBack.bleedW;
+    bleedHeight = CD.caseBack.bleedH;
+    safeWidth = CD.caseBack.safeW;
+    safeHeight = CD.caseBack.safeH;
   } else if (part === '4x5-front' || part === '4x5-back') {
-    trimWidth = 40;
-    trimHeight = 50;
-    bleedWidth = 44;
-    bleedHeight = 54;
-    safeWidth = 35;
-    safeHeight = 45; // 내부 표시창
+    trimWidth = FOUR_FIVE.trimW;
+    trimHeight = FOUR_FIVE.trimH;
+    bleedWidth = FOUR_FIVE.bleedW;
+    bleedHeight = FOUR_FIVE.bleedH;
+    safeWidth = FOUR_FIVE.viewportW;
+    safeHeight = FOUR_FIVE.viewportH; // 내부 표시창
   }
 
   const slotStyle: React.CSSProperties = {
@@ -72,8 +76,8 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
 
   // 4x5의 내부 가시 영역(뷰포트): 35×45mm 고정
   const hasViewport = part === '4x5-front' || part === '4x5-back';
-  const viewportWidth = hasViewport ? 35 : trimWidth;
-  const viewportHeight = hasViewport ? 45 : trimHeight;
+  const viewportWidth = hasViewport ? FOUR_FIVE.viewportW : trimWidth;
+  const viewportHeight = hasViewport ? FOUR_FIVE.viewportH : trimHeight;
   const viewportStyle: React.CSSProperties = {
     position: 'absolute',
     left: '50%',
@@ -170,6 +174,23 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
           </div>
         </div>
       </div>
+      {/* CD 디스크 센터홀 가이드 */}
+      {part === 'cd-disc' && showGuides && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: `${CD.disc.holeD}mm`,
+            height: `${CD.disc.holeD}mm`,
+            borderRadius: '50%',
+            border: '1px solid #111827', // 거의 검정에 가까운 진한 회색
+            zIndex: 5,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       <svg style={centerMarkStyle} viewBox="0 0 5 5">
         <line x1="2.5" y1="0" x2="2.5" y2="5" stroke="black" strokeWidth="0.2" />
         <line x1="0" y1="2.5" x2="5" y2="2.5" stroke="black" strokeWidth="0.2" />

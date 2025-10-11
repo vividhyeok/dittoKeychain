@@ -31,7 +31,9 @@ const Sheet: React.FC<SheetProps> = ({ children, scale = 1.0, responsive = false
     return () => ro.disconnect();
   }, [responsive]);
 
-  const currentScale = responsive ? autoScale : scale;
+  // 화면에서는 responsive/수동 스케일 사용, 인쇄 시에는 1.0로 강제
+  const printing = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('print').matches;
+  const currentScale = printing ? 1 : (responsive ? autoScale : scale);
 
   const innerStyle: React.CSSProperties = {
     width: `100mm`,

@@ -1,6 +1,7 @@
 import Sheet from '../components/Sheet';
 import Slot from '../components/Slot';
 import { staffStore } from '../utils/staffStore';
+import { SHEET, GAP, CD } from '../utils/printSpecs';
 
 const StaffCd = () => {
   const cd = staffStore.getCd();
@@ -15,13 +16,13 @@ const StaffCd = () => {
         </div>
       </div>
       <Sheet responsive origin="top-left">
-        <div style={{ position: 'absolute', left: '1mm', top: '1mm' }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm}mm` }}>
           <Slot anchor="top-left" part="cd-disc" spec={cd?.disc || { part: 'cd-disc', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '1mm', top: '47mm' }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm + CD.disc.bleedD + GAP.tileMm}mm` }}>
           <Slot anchor="top-left" part="case-front" spec={cd?.front || { part: 'case-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '1mm', top: '93mm' }}>
+        <div style={{ position: 'absolute', left: `${SHEET.outerMarginMm}mm`, top: `${SHEET.outerMarginMm + CD.disc.bleedD + GAP.tileMm + CD.caseFront.bleedH + GAP.tileMm}mm` }}>
           <Slot anchor="top-left" part="case-back" spec={cd?.back || { part: 'case-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
       </Sheet>
