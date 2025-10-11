@@ -9,7 +9,7 @@ export const SHEET = {
 };
 
 export const GAP = {
-  tileMm: 2, // 권장 1–2mm, 기본 2mm
+  tileMm: 4, // 미리보기 이미지 사이 간격 +2mm (기존 2mm → 4mm)
 };
 
 export const FOUR_FIVE = {
