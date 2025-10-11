@@ -15,13 +15,13 @@ const StaffCd = () => {
         </div>
       </div>
       <Sheet responsive origin="top-left">
-        <div style={{ position: 'absolute', left: '2mm', top: '2mm' }}>
+        <div style={{ position: 'absolute', left: '1mm', top: '1mm' }}>
           <Slot anchor="top-left" part="cd-disc" spec={cd?.disc || { part: 'cd-disc', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '2mm', top: '48mm' }}>
+        <div style={{ position: 'absolute', left: '1mm', top: '47mm' }}>
           <Slot anchor="top-left" part="case-front" spec={cd?.front || { part: 'case-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '2mm', top: '94mm' }}>
+        <div style={{ position: 'absolute', left: '1mm', top: '93mm' }}>
           <Slot anchor="top-left" part="case-back" spec={cd?.back || { part: 'case-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
       </Sheet>

@@ -52,10 +52,10 @@ const FourUp = () => {
     };
 
   // 좌상단: A 앞, 우상단: A 뒤, 좌하단: B 앞, 우하단: B 뒤
-  await drawPart(AFront!, 2, 2, 35, 45);
-  await drawPart(ABack!, 44, 2, 35, 45);
-  await drawPart(BFront!, 2, 54, 35, 45);
-  await drawPart(BBack!, 44, 54, 35, 45);
+  await drawPart(AFront!, 1, 1, 35, 45);
+  await drawPart(ABack!, 43, 1, 35, 45);
+  await drawPart(BFront!, 1, 52, 35, 45);
+  await drawPart(BBack!, 43, 52, 35, 45);
 
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/jpeg', 0.92);
@@ -76,16 +76,16 @@ const FourUp = () => {
         </div>
       </div>
       <Sheet responsive origin="top-left">
-        <div style={{ position: 'absolute', left: '2mm', top: '2mm' }}>
+        <div style={{ position: 'absolute', left: '1mm', top: '1mm' }}>
           <Slot anchor="top-left" part={AFront ? AFront.part : '4x5-front'} spec={AFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '44mm', top: '2mm' }}>
+        <div style={{ position: 'absolute', left: '43mm', top: '1mm' }}>
           <Slot anchor="top-left" part={ABack ? ABack.part : '4x5-back'} spec={ABack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '2mm', top: '54mm' }}>
+        <div style={{ position: 'absolute', left: '1mm', top: '52mm' }}>
           <Slot anchor="top-left" part={BFront ? BFront.part : '4x5-front'} spec={BFront || { part: '4x5-front', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
-        <div style={{ position: 'absolute', left: '44mm', top: '54mm' }}>
+        <div style={{ position: 'absolute', left: '43mm', top: '52mm' }}>
           <Slot anchor="top-left" part={BBack ? BBack.part : '4x5-back'} spec={BBack || { part: '4x5-back', tx: 0, ty: 0, scale: 1, rot: 0 }} onUpdate={() => {}} showGuides={true} />
         </div>
       </Sheet>
