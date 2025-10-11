@@ -49,7 +49,7 @@ const Sheet: React.FC<SheetProps> = ({ children, scale = 1.0, responsive = false
     <div ref={wrapRef} style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
       <div ref={innerRef} style={innerStyle}>
         {children}
-        <div style={{ position: 'absolute', bottom: '5mm', right: '5mm', fontSize: '10px', color: '#64748b', background: 'rgba(255,255,255,0.7)', padding: '2px 6px', borderRadius: '8px' }}>
+        <div className="no-print" style={{ position: 'absolute', bottom: '5mm', right: '5mm', fontSize: '10px', color: '#64748b', background: 'rgba(255,255,255,0.7)', padding: '2px 6px', borderRadius: '8px' }}>
           {Math.round(currentScale * 100)}% 실물 크기
         </div>
       </div>
