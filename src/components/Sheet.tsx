@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { PRINT_CAL } from '../utils/printSpecs';
 
 interface SheetProps {
   children: React.ReactNode;
@@ -33,7 +34,9 @@ const Sheet: React.FC<SheetProps> = ({ children, scale = 1.0, responsive = false
 
   // 화면에서는 responsive/수동 스케일 사용, 인쇄 시에는 1.0로 강제
   const printing = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('print').matches;
-  const currentScale = printing ? 1 : (responsive ? autoScale : scale);
+  const scaleBase = responsive ? autoScale : scale;
+  const scaleX = printing ? PRINT_CAL.scaleX : scaleBase;
+  const scaleY = printing ? PRINT_CAL.scaleY : scaleBase;
 
   const innerStyle: React.CSSProperties = {
     width: `100mm`,
@@ -41,7 +44,7 @@ const Sheet: React.FC<SheetProps> = ({ children, scale = 1.0, responsive = false
     position: 'relative',
     background: 'white',
     border: '1px solid #ccc',
-    transform: `scale(${currentScale})`,
+    transform: `scale(${scaleX}, ${scaleY})`,
     transformOrigin: origin === 'top-left' ? 'top left' : 'top center',
   };
 
@@ -50,7 +53,7 @@ const Sheet: React.FC<SheetProps> = ({ children, scale = 1.0, responsive = false
       <div ref={innerRef} style={innerStyle}>
         {children}
         <div className="no-print" style={{ position: 'absolute', bottom: '5mm', right: '5mm', fontSize: '10px', color: '#64748b', background: 'rgba(255,255,255,0.7)', padding: '2px 6px', borderRadius: '8px' }}>
-          {Math.round(currentScale * 100)}% 실물 크기
+          {Math.round(((scaleX + scaleY) / 2) * 100)}% 실물 크기
         </div>
       </div>
     </div>

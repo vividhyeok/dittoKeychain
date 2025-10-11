@@ -3,7 +3,7 @@ import Sheet from '../components/Sheet';
 import Slot from '../components/Slot';
 import { PartSpec } from '../types';
 import { staffStore } from '../utils/staffStore';
-import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx, EXPORT_NUDGE } from '../utils/printSpecs';
+import { SHEET, GAP, FOUR_FIVE, DPI, mmToPx, EXPORT_NUDGE, PRINT_CAL } from '../utils/printSpecs';
 
 const FourUp = () => {
   // 스태프 모드: 편집 불가, 스캔한 설정 그대로 배치
@@ -20,7 +20,9 @@ const FourUp = () => {
     try {
       // 간단 캔버스 렌더링: A6 (100x148mm) @ 300dpi → 1181 x 1748 px 정도. 메모리 고려해 600~900dpi는 피함.
       const dpi = DPI; // 300dpi 기본
-      const toPx = (mm: number) => mmToPx(mm, dpi);
+      // 프린터 보정: mm→px 변환 시 역으로 보정 스케일을 적용해 실제 인쇄 크기를 줄임
+      const toPx = (mm: number) => mmToPx(mm * PRINT_CAL.scaleX, dpi); // 가로 기준
+      const toPxY = (mm: number) => mmToPx(mm * PRINT_CAL.scaleY, dpi); // 세로 기준
       const W = toPx(SHEET.widthMm);
       const H = toPx(SHEET.heightMm);
       const canvas = document.createElement('canvas');
@@ -55,8 +57,8 @@ const FourUp = () => {
 
       const drawPart = async (p: PartSpec | undefined, xMm: number, yMm: number, vpWmm: number, vpHmm: number, label: string) => {
         if (!p?.img) return;
-        const x = toPx(xMm), y = toPx(yMm);
-        const vpW = toPx(vpWmm), vpH = toPx(vpHmm);
+        const x = toPx(xMm), y = toPxY(yMm);
+        const vpW = toPx(vpWmm), vpH = toPxY(vpHmm);
         ctx.save();
         ctx.beginPath();
         ctx.rect(x, y, vpW, vpH);
@@ -86,8 +88,8 @@ const FourUp = () => {
         ctx.save();
         ctx.strokeStyle = '#C81E1E';
         ctx.lineWidth = Math.max(1, Math.round(toPx(0.2))); // 약 0.2mm
-        const trimW = toPx(FOUR_FIVE.trimW);
-        const trimH = toPx(FOUR_FIVE.trimH);
+  const trimW = toPx(FOUR_FIVE.trimW);
+  const trimH = toPxY(FOUR_FIVE.trimH);
         ctx.strokeRect(cx - trimW / 2, cy - trimH / 2, trimW, trimH);
         ctx.restore();
         // 세이프(파랑 점선, 35x45mm)

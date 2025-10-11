@@ -47,3 +47,10 @@ export const EXPORT_NUDGE = {
   xMm: 0.0,
   yMm: 0.0,
 };
+
+// 인쇄 시 프린터 자동확대(overscan) 보정용 스케일
+// 사용 예: 기대 35mm → 실제 37mm이면 35/37 ≈ 0.946. 기본값 0.95 근처로 시작해 현장 보정 권장
+export const PRINT_CAL = {
+  scaleX: 0.95,
+  scaleY: 0.95,
+};
