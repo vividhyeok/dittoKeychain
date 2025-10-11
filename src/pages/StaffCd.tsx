@@ -7,7 +7,7 @@ const StaffCd = () => {
   const cd = staffStore.getCd();
   return (
     <div className="page p-4">
-      <div className="card p-4 mb-3">
+  <div className="card p-4 mb-3 no-print">
         <div className="flex items-center justify-between">
           <h1 className="heading">CD 3-up 배치/인쇄</h1>
           <div className="flex gap-2">
