@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/library';
-import { decodePayload } from '../utils/encode';
+import { decodeFromScan } from '../utils/encode';
 import { staffStore } from '../utils/staffStore';
 import { useNavigate } from 'react-router-dom';
 import { Payload4x5 } from '../types';
@@ -18,9 +18,9 @@ const Scan2 = () => {
     if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader();
     try {
       const result = await readerRef.current.decodeOnceFromVideoDevice(undefined, 'video');
-      const text = result.getText();
-      // 스태프 모드에선 링크가 아니라 data만 오므로 그대로 decode
-      const payload = decodePayload(text) as Payload4x5;
+  const text = result.getText();
+  // 전체 URL, 해시, 또는 압축 문자열 모두 허용
+  const payload = decodeFromScan(text) as Payload4x5;
       if (payload?.tpl === '4x5') {
         setPayloads(prev => [...prev, payload]);
       } else {

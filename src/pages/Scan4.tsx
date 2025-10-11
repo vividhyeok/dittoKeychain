@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/library';
-import { decodePayload } from '../utils/encode';
+import { decodeFromScan } from '../utils/encode';
 import { staffStore } from '../utils/staffStore';
 import { useNavigate } from 'react-router-dom';
 import { Payload4x5 } from '../types';
@@ -23,7 +23,7 @@ const Scan4 = () => {
         await readerRef.current.decodeFromVideoDevice(null, 'video', (result, err) => {
           if (result) {
             const text = result.getText();
-            const payload = decodePayload(text) as Payload4x5;
+            const payload = decodeFromScan(text) as Payload4x5;
             if (payload?.tpl === '4x5') {
               setPayloads(prev => {
                 if (prev.length < 4 && !prev.some(p => p.front?.img === payload.front?.img)) {
