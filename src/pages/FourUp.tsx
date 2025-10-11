@@ -66,13 +66,18 @@ const FourUp = () => {
         // object-fit: contain + mm 기반 transform 적용
         const txPx = toPx(p.tx), tyPx = toPx(p.ty);
         const scale = p.scale || 1;
-        const rW = vpW; const rH = vpH;
-        const scaleContain = Math.min(rW / img.width, rH / img.height);
-        const drawW = img.width * scaleContain * scale;
-        const drawH = img.height * scaleContain * scale;
-        // viewport 중앙 정렬
-  const imgX = x + (vpW - drawW) / 2 + txPx + toPx(EXPORT_NUDGE.xMm);
-  const imgY = y + (vpH - drawH) / 2 + tyPx + toPx(EXPORT_NUDGE.yMm);
+  const rW = vpW; const rH = vpH;
+  const iw = (img as HTMLImageElement).naturalWidth || img.width;
+  const ih = (img as HTMLImageElement).naturalHeight || img.height;
+  const scaleContain = Math.min(rW / iw, rH / ih);
+  const drawW = iw * scaleContain * scale;
+  const drawH = ih * scaleContain * scale;
+  // viewport 중앙 좌표
+  const vcx = x + vpW / 2;
+  const vcy = y + vpH / 2;
+  // 중앙 정렬: 이미지 중심을 viewport 중심에 맞춘 뒤, tx/ty(편집 이동 mm)와 누지 적용
+  const imgX = vcx - drawW / 2 + txPx + toPx(EXPORT_NUDGE.xMm);
+  const imgY = vcy - drawH / 2 + tyPx + toPx(EXPORT_NUDGE.yMm);
         ctx.drawImage(img, imgX, imgY, drawW, drawH);
         ctx.restore();
 
