@@ -62,6 +62,42 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
     bleedHeight = FOUR_FIVE.bleedH;
     safeWidth = FOUR_FIVE.viewportW;
     safeHeight = FOUR_FIVE.viewportH; // 내부 표시창
+  } else if (part === 'cd-front-left') {
+    trimWidth = CD.panels.front.left.w;
+    trimHeight = CD.panels.front.left.h;
+    bleedWidth = CD.panels.front.left.w; // 패널은 트림=블리드 동치로 취급(여백 없음)
+    bleedHeight = CD.panels.front.left.h;
+    safeWidth = CD.panels.front.left.w - 6; // 임의 3mm 여백
+    safeHeight = CD.panels.front.left.h - 6;
+  } else if (part === 'cd-front-right') {
+    trimWidth = CD.panels.front.right.w;
+    trimHeight = CD.panels.front.right.h;
+    bleedWidth = CD.panels.front.right.w;
+    bleedHeight = CD.panels.front.right.h;
+    safeWidth = CD.panels.front.right.w - 6;
+    safeHeight = CD.panels.front.right.h - 6;
+  } else if (part === 'cd-back-outside') {
+    trimWidth = CD.panels.back.outside.w;
+    trimHeight = CD.panels.back.outside.h;
+    bleedWidth = CD.panels.back.outside.w;
+    bleedHeight = CD.panels.back.outside.h;
+    safeWidth = CD.panels.back.outside.w - 6;
+    safeHeight = CD.panels.back.outside.h - 6;
+  } else if (part === 'cd-back-inside') {
+    trimWidth = CD.panels.back.inside.w;
+    trimHeight = CD.panels.back.inside.h;
+    bleedWidth = CD.panels.back.inside.w;
+    bleedHeight = CD.panels.back.inside.h;
+    safeWidth = CD.panels.back.inside.w - 6;
+    safeHeight = CD.panels.back.inside.h - 6;
+  } else if (part === 'cd-spine-1' || part === 'cd-spine-2' || part === 'cd-spine-3') {
+    const spine = CD.panels.back.spine1; // 모두 동일 규격
+    trimWidth = spine.w;
+    trimHeight = spine.h;
+    bleedWidth = spine.w;
+    bleedHeight = spine.h;
+    safeWidth = spine.w - 2; // 1mm 여백
+    safeHeight = spine.h - 2;
   }
 
   const slotStyle: React.CSSProperties = {

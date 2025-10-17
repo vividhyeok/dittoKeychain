@@ -38,6 +38,20 @@ export const CD = {
     bleedW: 53, bleedH: 41,
     safeW: 43, safeH: 31,
   },
+  // 신규: 패널 단위 mm 규격 (앞: 4x4 + 4x4 / 뒤: 4.9 + 0.5 + 0.5 + 0.5 + 4.4; 높이 3.7)
+  panels: {
+    front: {
+      left: { w: 40, h: 40 },
+      right: { w: 40, h: 40 },
+    },
+    back: {
+      outside: { w: 49, h: 37 },
+      spine1: { w: 5, h: 37 }, // 0.5cm = 5mm
+      spine2: { w: 5, h: 37 },
+      spine3: { w: 5, h: 37 },
+      inside: { w: 44, h: 37 },
+    },
+  },
 };
 
 export const mmToPx = (mm: number, dpi: number = DPI) => Math.round((mm / 25.4) * dpi);

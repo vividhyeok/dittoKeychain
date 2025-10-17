@@ -6,6 +6,7 @@ import { useImageEditor, useClipboardPaste } from '../hooks/useImageEditor';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { PartSpec } from '../types';
 import { encodePayload } from '../utils/encode';
+import { FOUR_FIVE, CD } from '../utils/printSpecs';
 
 interface ImageEditorProps {
   template: '4x5' | 'cd3';
@@ -195,6 +196,36 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
   const tabs = Object.keys(specs);
   const positions = template === '4x5' ? ['25%', '75%'] : ['22%', '50%', '78%'];
 
+  // 뷰포트 mm 크기 조회(커버 스케일 계산에 사용)
+  const getViewportMm = (part: PartSpec['part']): { w: number; h: number } => {
+    if (part === '4x5-front' || part === '4x5-back') return { w: FOUR_FIVE.viewportW, h: FOUR_FIVE.viewportH };
+    if (part === 'cd-disc') return { w: CD.disc.trimD, h: CD.disc.trimD };
+    if (part === 'cd-front-left') return { w: CD.panels.front.left.w, h: CD.panels.front.left.h };
+    if (part === 'cd-front-right') return { w: CD.panels.front.right.w, h: CD.panels.front.right.h };
+    if (part === 'cd-back-outside') return { w: CD.panels.back.outside.w, h: CD.panels.back.outside.h };
+    if (part === 'cd-back-inside') return { w: CD.panels.back.inside.w, h: CD.panels.back.inside.h };
+    if (part === 'cd-spine-1' || part === 'cd-spine-2' || part === 'cd-spine-3') return { w: CD.panels.back.spine1.w, h: CD.panels.back.spine1.h };
+    // 기본값: 사각 40x40
+    return { w: 40, h: 40 };
+  };
+
+  const coverCurrent = useCallback(() => {
+    const s = specs[active];
+    if (!s) return;
+    const { w: cw, h: ch } = getViewportMm(s.part);
+    const iw = s.imgWidth || 0;
+    const ih = s.imgHeight || 0;
+    if (!iw || !ih) return; // 이미지 크기 미확인 시 스킵
+    const aspectI = iw / ih;
+    const aspectC = cw / ch;
+    const factor = Math.max(aspectC / aspectI, aspectI / aspectC); // contain(=1) 대비 커버 배율
+    updateSpec(active, (prev) => ({ ...prev, tx: 0, ty: 0, scale: Math.min(5, Math.max(1, (prev.scale || 1) * factor)) }));
+  }, [active, specs, updateSpec]);
+
+  const resetCurrent = useCallback(() => {
+    updateSpec(active, (prev) => ({ ...prev, tx: 0, ty: 0, scale: 1, rot: 0 }));
+  }, [active, updateSpec]);
+
   return (
   <div className="page p-3 md:p-4 overflow-hidden">
       <h1 className="text-xl font-bold mb-4 text-center">{template === '4x5' ? '4×5 키링 편집' : 'CD형 키링 편집'}</h1>
@@ -209,7 +240,29 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
                   className={`px-4 py-2 transition-colors ${active === tab ? 'bg-blue-100 text-blue-900' : 'hover:bg-slate-100/80 text-slate-800'}`}
                   onClick={() => setActive(tab)}
                 >
-                  {tab === '4x5-front' ? '앞면' : tab === '4x5-back' ? '뒷면' : tab === 'cd-disc' ? 'CD' : tab === 'case-front' ? '앞' : '뒤'}
+                  {tab === '4x5-front'
+                    ? '앞면'
+                    : tab === '4x5-back'
+                    ? '뒷면'
+                    : tab === 'cd-disc'
+                    ? 'CD'
+                    : tab === 'cd-front-left'
+                    ? '앞-좌'
+                    : tab === 'cd-front-right'
+                    ? '앞-우'
+                    : tab === 'cd-back-outside'
+                    ? '뒤-바깥'
+                    : tab === 'cd-back-inside'
+                    ? '뒤-안쪽'
+                    : tab === 'cd-spine-1'
+                    ? '옆면1'
+                    : tab === 'cd-spine-2'
+                    ? '옆면2'
+                    : tab === 'cd-spine-3'
+                    ? '옆면3'
+                    : tab === 'case-front'
+                    ? '앞'
+                    : '뒤'}
                 </button>
               ))}
             </div>
@@ -245,6 +298,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
             >
               📋
             </button>
+            <button className={controlButtonClass} onClick={coverCurrent} aria-label="화면 채우기" title="화면 채우기(커버)">🖼️</button>
+            <button className={controlButtonClass} onClick={resetCurrent} aria-label="초기화" title="초기화">⟲</button>
             <button className={controlButtonClass} onClick={() => setShowUrlModal(true)} aria-label="URL 입력" title="이미지 주소 입력">🔗</button>
             <button className={controlButtonClass} onClick={() => zoom(1)} aria-label="확대">＋</button>
             <button className={controlButtonClass} onClick={() => zoom(-1)} aria-label="축소">－</button>
