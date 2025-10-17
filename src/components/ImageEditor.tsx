@@ -17,6 +17,13 @@ interface ImageEditorProps {
   qrPayload: (specs: Record<string, PartSpec>) => any;
   onSpecsChange?: (specs: Record<string, PartSpec>) => void;
 }
+  type ControlItem = {
+    key: string;
+    icon: string;
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+  };
 
 // URL 입력 모달 (http/https 이미지 주소만 허용)
 const UrlPasteModal: React.FC<{ onClose: () => void; onSubmit: (url: string) => void; }> = ({ onClose, onSubmit }) => {
@@ -57,6 +64,8 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [controlPanel, setControlPanel] = useState<'root' | 'view' | 'image' | 'input' | 'history'>('root');
+  const [viewerZoom, setViewerZoom] = useState(1);
 
   const generateQR = useCallback(async () => {
     setLoading(true);
@@ -182,6 +191,18 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     }
   }, [readClipboard]);
 
+  const adjustViewerZoom = useCallback((direction: 1 | -1) => {
+    setViewerZoom(prev => {
+      const factor = direction === 1 ? 1.12 : 1 / 1.12;
+      const next = prev * factor;
+      return Math.min(3, Math.max(0.5, Number(next.toFixed(3))));
+    });
+  }, []);
+
+  const resetViewerZoom = useCallback(() => {
+    setViewerZoom(1);
+  }, []);
+
   // 키보드 단축키 (이동 방향 반전)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -305,9 +326,13 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
         setStageScale(1);
         return;
       }
+      const paddingX = isMobile ? 64 : 120;
+      const paddingY = isMobile ? 80 : 160;
+      const availableW = Math.max(80, wrapperRect.width - paddingX);
+      const availableH = Math.max(80, wrapperRect.height - paddingY);
       const scale = Math.min(
-        (wrapperRect.width - 32) / innerRect.width,
-        (wrapperRect.height - 32) / innerRect.height,
+        availableW / innerRect.width,
+        availableH / innerRect.height,
         2.4,
       );
       setStageScale(scale > 0 && Number.isFinite(scale) ? Math.max(scale, 0.25) : 1);
@@ -424,7 +449,7 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
                       width: `${widthMm}mm`,
                       height: `${heightMm}mm`,
                       border: '1.5px solid #C81E1E',
-                      borderRadius: '24px',
+                      borderRadius: 0,
                       pointerEvents: 'none',
                       boxSizing: 'border-box',
                       zIndex: 4,
@@ -438,7 +463,7 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
                       width: `${safeWidthMm}mm`,
                       height: `${safeHeightMm}mm`,
                       border: '1.5px dashed #1D4ED8',
-                      borderRadius: '20px',
+                      borderRadius: 0,
                       pointerEvents: 'none',
                       boxSizing: 'border-box',
                       zIndex: 5,
@@ -517,40 +542,71 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     }
   }, []);
 
-  const controlButtons = [
-    { key: 'undo', icon: '↩️', label: '되돌리기', onClick: () => undo() },
-    { key: 'redo', icon: '↪️', label: '다시하기', onClick: () => redo() },
-    {
-      key: 'paste',
-      icon: '📋',
-      label: '붙여넣기',
-      onClick: () => {
-        if (isMobile) setShowPasteModal(true); else tryReadClipboard();
-      },
-    },
-    { key: 'url', icon: '🔗', label: 'URL', onClick: () => setShowUrlModal(true) },
+  const handlePasteAction = useCallback(() => {
+    if (isMobile) setShowPasteModal(true);
+    else void tryReadClipboard();
+  }, [isMobile, tryReadClipboard]);
+
+  const openUrlModal = useCallback(() => setShowUrlModal(true), []);
+
+  const controlButtonClass = 'flex min-w-[76px] snap-start flex-col items-center justify-center gap-1 rounded-2xl bg-slate-800 px-3 py-3 text-[11px] font-medium text-slate-200 shadow-inner shadow-slate-950/40 transition hover:bg-slate-700 active:scale-95';
+
+  const rootControls: ControlItem[] = [
+    { key: 'panel-view', icon: '🔍', label: '화면 조정', onClick: () => setControlPanel('view') },
+    { key: 'panel-image', icon: '🖼️', label: '이미지 조정', onClick: () => setControlPanel('image') },
+    { key: 'panel-input', icon: '�', label: '이미지 불러오기', onClick: () => setControlPanel('input') },
+    { key: 'panel-history', icon: '🕓', label: '작업 기록', onClick: () => setControlPanel('history') },
+  ];
+
+  const viewControls: ControlItem[] = [
+    { key: 'viewer-zoom-in', icon: '�＋', label: '뷰 확대', onClick: () => adjustViewerZoom(1) },
+    { key: 'viewer-zoom-out', icon: '�－', label: '뷰 축소', onClick: () => adjustViewerZoom(-1) },
+    { key: 'viewer-reset', icon: '◻️', label: '뷰 초기화', onClick: resetViewerZoom },
+  ];
+
+  const imageControls: ControlItem[] = [
+    { key: 'img-zoom-in', icon: '＋', label: '이미지 확대', onClick: () => zoom(1) },
+    { key: 'img-zoom-out', icon: '－', label: '이미지 축소', onClick: () => zoom(-1) },
     { key: 'cover', icon: '🖼️', label: '맞춤', onClick: coverCurrent },
     { key: 'reset', icon: '⟲', label: '초기화', onClick: resetCurrent },
-    { key: 'zoom-in', icon: '＋', label: '확대', onClick: () => zoom(1) },
-    { key: 'zoom-out', icon: '－', label: '축소', onClick: () => zoom(-1) },
     { key: 'up', icon: '↑', label: '위로', onClick: () => nudge(0, 1) },
     { key: 'down', icon: '↓', label: '아래로', onClick: () => nudge(0, -1) },
     { key: 'left', icon: '←', label: '왼쪽', onClick: () => nudge(1, 0) },
     { key: 'right', icon: '→', label: '오른쪽', onClick: () => nudge(-1, 0) },
   ];
 
+  const inputControls: ControlItem[] = [
+    { key: 'paste', icon: '📋', label: '붙여넣기', onClick: handlePasteAction },
+    { key: 'url', icon: '🔗', label: 'URL 입력', onClick: openUrlModal },
+  ];
+
+  const historyControls: ControlItem[] = [
+    { key: 'undo', icon: '↩️', label: '되돌리기', onClick: () => undo() },
+    { key: 'redo', icon: '↪️', label: '다시하기', onClick: () => redo() },
+  ];
+
+  const currentControls: ControlItem[] = controlPanel === 'root'
+    ? rootControls
+    : controlPanel === 'view'
+    ? viewControls
+    : controlPanel === 'image'
+    ? imageControls
+    : controlPanel === 'input'
+    ? inputControls
+    : historyControls;
+
   return (
     <div className="relative flex min-h-screen flex-col bg-slate-900 text-white">
       <div className="flex-1 overflow-y-auto pb-44 pt-20">
-        <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-6 px-4">
+        <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-4 px-4">
           <div
             ref={stageWrapperRef}
-            className="relative flex min-h-[340px] items-center justify-center overflow-hidden rounded-3xl bg-slate-800/60 p-6 shadow-[0_40px_80px_-32px_rgba(15,23,42,0.65)]"
+            className="relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-3xl bg-slate-800/60 p-6 shadow-[0_40px_80px_-32px_rgba(15,23,42,0.65)] sm:min-h-[420px]"
           >
             {preview ? (
               <div
                 ref={stageTransformRef}
-                style={{ transform: `scale(${stageScale})`, transformOrigin: '50% 50%' }}
+                style={{ transform: `scale(${stageScale * viewerZoom})`, transformOrigin: '50% 50%' }}
                 className="transition-transform duration-150 ease-out"
               >
                 <div
@@ -587,14 +643,33 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
             </div>
           )}
 
+          {controlPanel !== 'root' && (
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setControlPanel('root')}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-blue-100"
+              >
+                <span className="text-base leading-none">←</span>
+                <span>뒤로가기</span>
+              </button>
+              {controlPanel === 'view' && (
+                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                  배율 ×{viewerZoom.toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex snap-x gap-2 overflow-x-auto pb-1">
-            {controlButtons.map(button => (
+            {currentControls.map((button) => (
               <button
                 key={button.key}
                 type="button"
-                className="flex min-w-[76px] snap-start flex-col items-center justify-center gap-1 rounded-2xl bg-slate-800 px-3 py-3 text-[11px] font-medium text-slate-200 shadow-inner shadow-slate-950/40 transition hover:bg-slate-700 active:scale-95"
-                onClick={button.onClick}
+                className={`${controlButtonClass} ${button.disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                onClick={() => { if (!button.disabled) button.onClick(); }}
                 aria-label={button.label}
+                disabled={button.disabled}
               >
                 <span className="text-2xl leading-none">{button.icon}</span>
                 <span>{button.label}</span>
