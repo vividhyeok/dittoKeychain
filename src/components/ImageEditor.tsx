@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import Sheet from './Sheet';
 import Slot from './Slot';
 import { useImageEditor, useClipboardPaste } from '../hooks/useImageEditor';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -8,10 +7,15 @@ import { PartSpec } from '../types';
 import { encodePayload } from '../utils/encode';
 import { FOUR_FIVE, CD } from '../utils/printSpecs';
 
+export type ImageEditorHandle = {
+  generateQR: () => Promise<void>;
+};
+
 interface ImageEditorProps {
   template: '4x5' | 'cd3';
   initialSpecs: Record<string, PartSpec>;
   qrPayload: (specs: Record<string, PartSpec>) => any;
+  onSpecsChange?: (specs: Record<string, PartSpec>) => void;
 }
 
 // URL 입력 모달 (http/https 이미지 주소만 허용)
@@ -44,7 +48,7 @@ const UrlPasteModal: React.FC<{ onClose: () => void; onSubmit: (url: string) => 
   );
 };
 
-const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPayload }) => {
+const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ template, initialSpecs, qrPayload, onSpecsChange }, ref) => {
   const isMobile = useIsMobile();
   const { specs, active, setActive, updateSpec, undo, redo, nudge, zoom, pasteRef } = useImageEditor(initialSpecs);
   const [qrUrl, setQrUrl] = useState('');
@@ -54,8 +58,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
   const [showQrModal, setShowQrModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
 
-  const generateQR = async () => {
-  setLoading(true);
+  const generateQR = useCallback(async () => {
+    setLoading(true);
     try {
       // 1차 시도: 현재 스펙 그대로
       const makeUrl = (specsArg: typeof specs) => {
@@ -122,7 +126,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
           const payloadUrl = (() => {
             const payload = qrPayload(newSpecs);
             const data = encodePayload(payload);
-            return `${window.location.origin}/p/${template}?data=${data}`;
+            const editPath = template === '4x5' ? '/p/4x5/edit' : '/p/cd/edit';
+            return `${window.location.origin}${editPath}?data=${data}`;
           })();
           const qr = await QRCode.toDataURL(payloadUrl, { errorCorrectionLevel: 'L' });
           return qr;
@@ -146,7 +151,19 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
     } finally {
       setLoading(false);
     }
-  };
+  }, [qrPayload, specs, template]);
+
+  // 외부에서 완료(생성) 트리거를 호출할 수 있도록 노출
+  useImperativeHandle(ref, () => ({ generateQR }), [generateQR]);
+
+  useEffect(() => {
+    const handleDone = () => { void generateQR(); };
+    window.addEventListener('editor:done', handleDone);
+    return () => window.removeEventListener('editor:done', handleDone);
+  }, [generateQR]);
+
+  // 스펙 변화 콜백(상위에서 3D 프리뷰 등 동기화에 사용)
+  useEffect(() => { onSpecsChange?.(specs); }, [specs, onSpecsChange]);
 
   const handlePaste = useCallback((dataUrl: string) => {
     // 초기에는 이미지 전체가 보이도록(scale 최소 1) 설정
@@ -191,11 +208,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nudge, zoom, undo, redo]);
 
-  const controlButtonClass = 'btn-icon text-lg font-semibold';
-  const panelClass = 'card p-4 flex flex-col items-center gap-3';
-  const tabs = Object.keys(specs);
-  const positions = template === '4x5' ? ['25%', '75%'] : ['22%', '50%', '78%'];
-
   // 뷰포트 mm 크기 조회(커버 스케일 계산에 사용)
   const getViewportMm = (part: PartSpec['part']): { w: number; h: number } => {
     if (part === '4x5-front' || part === '4x5-back') return { w: FOUR_FIVE.viewportW, h: FOUR_FIVE.viewportH };
@@ -226,118 +238,409 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
     updateSpec(active, (prev) => ({ ...prev, tx: 0, ty: 0, scale: 1, rot: 0 }));
   }, [active, updateSpec]);
 
-  return (
-  <div className="page p-3 md:p-4 overflow-hidden">
-      <h1 className="text-xl font-bold mb-4 text-center">{template === '4x5' ? '4×5 키링 편집' : 'CD형 키링 편집'}</h1>
-      <div className="flex flex-row items-stretch justify-center gap-3 md:gap-6 h-[calc(100vh-110px)]">
-        <div className="relative inline-block flex-1 min-w-[260px] overflow-hidden">
-          <Sheet responsive={isMobile} scale={isMobile ? (template === '4x5' ? 0.62 : 0.7) : 0.82}>
-            {/* 상단 탭 */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-2 z-10 bg-white/90 text-slate-800 rounded shadow inline-flex overflow-hidden">
-              {tabs.map(tab => (
-                <button
-                  key={tab}
-                  className={`px-4 py-2 transition-colors ${active === tab ? 'bg-blue-100 text-blue-900' : 'hover:bg-slate-100/80 text-slate-800'}`}
-                  onClick={() => setActive(tab)}
-                >
-                  {tab === '4x5-front'
-                    ? '앞면'
-                    : tab === '4x5-back'
-                    ? '뒷면'
-                    : tab === 'cd-disc'
-                    ? 'CD'
-                    : tab === 'cd-front-left'
-                    ? '앞-좌'
-                    : tab === 'cd-front-right'
-                    ? '앞-우'
-                    : tab === 'cd-back-outside'
-                    ? '뒤-바깥'
-                    : tab === 'cd-back-inside'
-                    ? '뒤-안쪽'
-                    : tab === 'cd-spine-1'
-                    ? '옆면1'
-                    : tab === 'cd-spine-2'
-                    ? '옆면2'
-                    : tab === 'cd-spine-3'
-                    ? '옆면3'
-                    : tab === 'case-front'
-                    ? '앞'
-                    : '뒤'}
-                </button>
+  const PREVIEW_GAP_MM = 2;
+
+  const groups = useMemo(() => {
+    if (template === 'cd3') {
+      return [
+        { key: 'front', label: '앞', parts: ['cd-front-left', 'cd-front-right'] as string[] },
+        { key: 'back', label: '뒤', parts: ['cd-back-outside', 'cd-spine-1', 'cd-spine-2', 'cd-spine-3', 'cd-back-inside'] as string[] },
+        { key: 'disc', label: 'CD', parts: ['cd-disc'] as string[] },
+      ]
+        .map(group => ({ ...group, parts: group.parts.filter(part => specs[part]) }))
+        .filter(group => group.parts.length > 0);
+    }
+    if (template === '4x5') {
+      return [
+        { key: 'front', label: '앞', parts: ['4x5-front'] as string[] },
+        { key: 'back', label: '뒤', parts: ['4x5-back'] as string[] },
+      ]
+        .map(group => ({ ...group, parts: group.parts.filter(part => specs[part]) }))
+        .filter(group => group.parts.length > 0);
+    }
+    return [];
+  }, [template, specs]);
+
+  const activeGroup = useMemo(() => {
+    if (!groups.length) return undefined;
+    return groups.find(group => group.parts.includes(active)) ?? groups[0];
+  }, [groups, active]);
+
+  const selectGroup = useCallback((groupKey: string) => {
+    const group = groups.find(g => g.key === groupKey);
+    if (!group) return;
+    const next = group.parts.includes(active) ? active : group.parts[0];
+    if (next) setActive(next);
+  }, [groups, active, setActive]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ group?: string }>).detail;
+      if (!detail?.group) return;
+      selectGroup(detail.group);
+    };
+    window.addEventListener('editor:group', handler as EventListener);
+    return () => window.removeEventListener('editor:group', handler as EventListener);
+  }, [selectGroup]);
+
+  useEffect(() => {
+    if (!activeGroup) return;
+    window.dispatchEvent(new CustomEvent('editor:group-changed', { detail: { group: activeGroup.key } }));
+  }, [activeGroup]);
+
+  const stageWrapperRef = useRef<HTMLDivElement>(null);
+  const stageInnerRef = useRef<HTMLDivElement>(null);
+  const stageTransformRef = useRef<HTMLDivElement>(null);
+  const [stageScale, setStageScale] = useState(1);
+
+  useEffect(() => {
+    const wrapper = stageWrapperRef.current;
+    const inner = stageInnerRef.current;
+    if (!wrapper || !inner) return;
+
+    const computeScale = () => {
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const innerRect = inner.getBoundingClientRect();
+      if (!wrapperRect.width || !innerRect.width || !wrapperRect.height || !innerRect.height) {
+        setStageScale(1);
+        return;
+      }
+      const scale = Math.min(
+        (wrapperRect.width - 32) / innerRect.width,
+        (wrapperRect.height - 32) / innerRect.height,
+        2.4,
+      );
+      setStageScale(scale > 0 && Number.isFinite(scale) ? Math.max(scale, 0.25) : 1);
+    };
+
+    const ro = new ResizeObserver(() => computeScale());
+    ro.observe(wrapper);
+    ro.observe(inner);
+    computeScale();
+    return () => ro.disconnect();
+  }, [activeGroup, specs, isMobile]);
+
+  const activatePart = useCallback((partKey: string) => {
+    setActive(partKey);
+    pasteRef.current?.focus();
+    if (!isMobile) {
+      tryReadClipboard();
+    }
+  }, [isMobile, pasteRef, setActive, tryReadClipboard]);
+
+  const renderSlotAt = useCallback((partKey: string, offsetX: number, offsetY = 0, options?: { showGuides?: boolean }) => {
+    const spec = specs[partKey];
+    if (!spec) return null;
+    return (
+      <div
+        key={partKey}
+        style={{ position: 'absolute', left: `${offsetX}mm`, top: `${offsetY}mm` }}
+      >
+        <Slot
+          anchor="top-left"
+          part={spec.part}
+          spec={spec}
+          showGuides={options?.showGuides ?? true}
+          onUpdate={(s) => updateSpec(partKey, () => s)}
+          onClick={() => activatePart(partKey)}
+          isActive={active === partKey}
+        />
+      </div>
+    );
+  }, [activatePart, specs, updateSpec, active]);
+
+  const preview = useMemo(() => {
+    if (!activeGroup) return null;
+
+    const plate = (widthMm: number, heightMm: number) => (
+      <div
+        key="plate"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: `${widthMm}mm`,
+          height: `${heightMm}mm`,
+          background: '#ffffff',
+          borderRadius: '24px',
+          border: '1px solid rgba(148, 163, 184, 0.55)',
+          boxShadow: '0 22px 50px rgba(15, 23, 42, 0.35)',
+        }}
+      />
+    );
+
+    if (template === 'cd3') {
+      if (activeGroup.key === 'front') {
+        const widthMm = CD.panels.front.left.w + PREVIEW_GAP_MM + CD.panels.front.right.w;
+        const heightMm = CD.panels.front.left.h;
+        return {
+          title: '앞 커버',
+          widthMm,
+          heightMm,
+          nodes: (
+            <>
+              {plate(widthMm, heightMm)}
+              {renderSlotAt('cd-front-left', 0, 0)}
+              {renderSlotAt('cd-front-right', CD.panels.front.left.w + PREVIEW_GAP_MM, 0)}
+            </>
+          ),
+        };
+      }
+      if (activeGroup.key === 'back') {
+        const sequence: Array<{ key: string; w: number }> = [
+          { key: 'cd-back-outside', w: CD.panels.back.outside.w },
+          { key: 'cd-spine-1', w: CD.panels.back.spine1.w },
+          { key: 'cd-spine-2', w: CD.panels.back.spine2.w },
+          { key: 'cd-spine-3', w: CD.panels.back.spine3.w },
+          { key: 'cd-back-inside', w: CD.panels.back.inside.w },
+        ];
+        const heightMm = CD.panels.back.outside.h;
+        const widthMm = sequence.reduce((acc, cur, idx) => acc + cur.w + (idx === 0 ? 0 : PREVIEW_GAP_MM), 0);
+        const sequenceWithOffsets: Array<{ key: string; w: number; start: number }> = [];
+        let running = 0;
+        sequence.forEach((item, idx) => {
+          if (idx > 0) running += PREVIEW_GAP_MM;
+          sequenceWithOffsets.push({ ...item, start: running });
+          running += item.w;
+        });
+        const showGroupGuides = true;
+        const safeInsetMm = 3;
+        const safeWidthMm = Math.max(0, widthMm - safeInsetMm * 2);
+        const safeHeightMm = Math.max(0, heightMm - safeInsetMm * 2);
+        return {
+          title: '뒷 커버 + 옆면',
+          widthMm,
+          heightMm,
+          nodes: (
+            <>
+              {plate(widthMm, heightMm)}
+              {showGroupGuides && (
+                <>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: `${widthMm}mm`,
+                      height: `${heightMm}mm`,
+                      border: '1.5px solid #C81E1E',
+                      borderRadius: '24px',
+                      pointerEvents: 'none',
+                      boxSizing: 'border-box',
+                      zIndex: 4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${safeInsetMm}mm`,
+                      top: `${safeInsetMm}mm`,
+                      width: `${safeWidthMm}mm`,
+                      height: `${safeHeightMm}mm`,
+                      border: '1.5px dashed #1D4ED8',
+                      borderRadius: '20px',
+                      pointerEvents: 'none',
+                      boxSizing: 'border-box',
+                      zIndex: 5,
+                    }}
+                  />
+                </>
+              )}
+              {sequenceWithOffsets.map((item) => (
+                renderSlotAt(item.key, item.start, 0, { showGuides: !showGroupGuides })
               ))}
-            </div>
+            </>
+          ),
+        };
+      }
+      if (activeGroup.key === 'disc') {
+        const widthMm = CD.disc.bleedD;
+        const heightMm = CD.disc.bleedD;
+        return {
+          title: 'CD 디스크',
+          widthMm,
+          heightMm,
+          nodes: (
+            <>
+              {plate(widthMm, heightMm)}
+              {renderSlotAt('cd-disc', 0, 0)}
+            </>
+          ),
+        };
+      }
+    }
 
-            {/* 슬롯들 */}
-            {tabs.map((tab, i) => (
-              <div key={tab} style={{ position: 'absolute', left: '50%', top: positions[i], transform: 'translateX(-50%)' }}>
-                <Slot
-                  part={specs[tab].part}
-                  spec={specs[tab]}
-                  onUpdate={(s) => updateSpec(tab, () => s)}
-                  onClick={() => {
-                    setActive(tab);
-                    pasteRef.current?.focus();
-                    tryReadClipboard();
-                  }}
-                  isActive={active === tab}
-                />
-              </div>
-            ))}
-          </Sheet>
-        </div>
+    if (template === '4x5') {
+      const partKey = activeGroup.parts[0];
+      const widthMm = FOUR_FIVE.bleedW;
+      const heightMm = FOUR_FIVE.bleedH;
+      return {
+        title: activeGroup.key === 'front' ? '앞면' : '뒷면',
+        widthMm,
+        heightMm,
+        nodes: (
+          <>
+            {plate(widthMm, heightMm)}
+            {renderSlotAt(partKey, 0, 0)}
+          </>
+        ),
+      };
+    }
 
-        <div className="flex flex-col items-center gap-3 w-[86px] md:w-[96px]">
-          <div className={`${panelClass} w-full items-stretch gap-3`}>
-            <button
-              className={controlButtonClass}
-              onClick={() => {
-                if (isMobile) setShowPasteModal(true); else tryReadClipboard();
-              }}
-              aria-label="이미지 붙여넣기"
-              title="이미지 붙여넣기"
-            >
-              📋
-            </button>
-            <button className={controlButtonClass} onClick={coverCurrent} aria-label="화면 채우기" title="화면 채우기(커버)">🖼️</button>
-            <button className={controlButtonClass} onClick={resetCurrent} aria-label="초기화" title="초기화">⟲</button>
-            <button className={controlButtonClass} onClick={() => setShowUrlModal(true)} aria-label="URL 입력" title="이미지 주소 입력">🔗</button>
-            <button className={controlButtonClass} onClick={() => zoom(1)} aria-label="확대">＋</button>
-            <button className={controlButtonClass} onClick={() => zoom(-1)} aria-label="축소">－</button>
-            <button className={controlButtonClass} onClick={() => nudge(0, 1)} aria-label="위로">↑</button>
-            <button className={controlButtonClass} onClick={() => nudge(0, -1)} aria-label="아래로">↓</button>
-            <button className={controlButtonClass} onClick={() => nudge(1, 0)} aria-label="왼쪽">←</button>
-            <button className={controlButtonClass} onClick={() => nudge(-1, 0)} aria-label="오른쪽">→</button>
-          </div>
+    return null;
+  }, [activeGroup, renderSlotAt, template]);
 
-          <div className={`${panelClass} w-full my-auto`}>
-            <button onClick={generateQR} disabled={loading} className="w-full px-3 py-2 bg-blue-500 text-white rounded-full shadow disabled:opacity-50 hover:bg-blue-600 active:scale-95 transition text-sm">
-              {loading ? '완료 중...' : '완료'}
-            </button>
-            {qrUrl && (
-              <div className="bg-white rounded shadow p-2">
-                <img src={qrUrl} alt="QR Code" className="w-36 h-36 object-contain" />
+  const getPartLabel = useCallback((partKey: string) => {
+    switch (partKey) {
+      case 'cd-front-left':
+        return '바깥';
+      case 'cd-front-right':
+        return '안쪽';
+      case 'cd-back-outside':
+        return '뒷면';
+      case 'cd-back-inside':
+        return '안쪽';
+      case 'cd-spine-1':
+        return '옆 1';
+      case 'cd-spine-2':
+        return '옆 2';
+      case 'cd-spine-3':
+        return '옆 3';
+      case 'cd-disc':
+        return '디스크';
+      case '4x5-front':
+        return '앞';
+      case '4x5-back':
+        return '뒤';
+      default:
+        return partKey;
+    }
+  }, []);
+
+  const controlButtons = [
+    { key: 'undo', icon: '↩️', label: '되돌리기', onClick: () => undo() },
+    { key: 'redo', icon: '↪️', label: '다시하기', onClick: () => redo() },
+    {
+      key: 'paste',
+      icon: '📋',
+      label: '붙여넣기',
+      onClick: () => {
+        if (isMobile) setShowPasteModal(true); else tryReadClipboard();
+      },
+    },
+    { key: 'url', icon: '🔗', label: 'URL', onClick: () => setShowUrlModal(true) },
+    { key: 'cover', icon: '🖼️', label: '맞춤', onClick: coverCurrent },
+    { key: 'reset', icon: '⟲', label: '초기화', onClick: resetCurrent },
+    { key: 'zoom-in', icon: '＋', label: '확대', onClick: () => zoom(1) },
+    { key: 'zoom-out', icon: '－', label: '축소', onClick: () => zoom(-1) },
+    { key: 'up', icon: '↑', label: '위로', onClick: () => nudge(0, 1) },
+    { key: 'down', icon: '↓', label: '아래로', onClick: () => nudge(0, -1) },
+    { key: 'left', icon: '←', label: '왼쪽', onClick: () => nudge(1, 0) },
+    { key: 'right', icon: '→', label: '오른쪽', onClick: () => nudge(-1, 0) },
+  ];
+
+  return (
+    <div className="relative flex min-h-screen flex-col bg-slate-900 text-white">
+      <div className="flex-1 overflow-y-auto pb-44 pt-20">
+        <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-6 px-4">
+          <div
+            ref={stageWrapperRef}
+            className="relative flex min-h-[340px] items-center justify-center overflow-hidden rounded-3xl bg-slate-800/60 p-6 shadow-[0_40px_80px_-32px_rgba(15,23,42,0.65)]"
+          >
+            {preview ? (
+              <div
+                ref={stageTransformRef}
+                style={{ transform: `scale(${stageScale})`, transformOrigin: '50% 50%' }}
+                className="transition-transform duration-150 ease-out"
+              >
+                <div
+                  ref={stageInnerRef}
+                  className="relative"
+                  style={{ width: `${preview.widthMm}mm`, height: `${preview.heightMm}mm` }}
+                >
+                  {preview.nodes}
+                </div>
               </div>
-            )}
-            {clipboardMessage && (
-              <div className="text-xs text-blue-600 bg-white/80 backdrop-blur px-3 py-2 rounded-xl shadow text-center">
-                {clipboardMessage}
-              </div>
+            ) : (
+              <div className="text-sm text-slate-300">선택 가능한 파트가 없습니다.</div>
             )}
           </div>
         </div>
       </div>
 
-      {/* 숨김 paste 포커스 타겟 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-[132px] h-32 bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent" />
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-800 bg-slate-900/95 backdrop-blur">
+        <div className="mx-auto w-full max-w-screen-sm space-y-3 px-4 py-4">
+          {activeGroup && activeGroup.parts.length > 1 && (
+            <div className="flex items-center justify-center gap-2">
+              {activeGroup.parts.map(partKey => (
+                <button
+                  key={partKey}
+                  type="button"
+                  onClick={() => activatePart(partKey)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active === partKey ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                >
+                  {getPartLabel(partKey)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1">
+            {controlButtons.map(button => (
+              <button
+                key={button.key}
+                type="button"
+                className="flex min-w-[76px] snap-start flex-col items-center justify-center gap-1 rounded-2xl bg-slate-800 px-3 py-3 text-[11px] font-medium text-slate-200 shadow-inner shadow-slate-950/40 transition hover:bg-slate-700 active:scale-95"
+                onClick={button.onClick}
+                aria-label={button.label}
+              >
+                <span className="text-2xl leading-none">{button.icon}</span>
+                <span>{button.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => void generateQR()}
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center rounded-full bg-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              {loading ? '완료 중...' : '완료'}
+            </button>
+
+            {qrUrl && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-3 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-blue-400 hover:text-blue-100"
+                onClick={() => setShowQrModal(true)}
+              >
+                <img src={qrUrl} alt="QR Code" className="h-12 w-12 rounded-xl border border-slate-700 object-contain" />
+                <span>QR 미리 보기</span>
+              </button>
+            )}
+          </div>
+
+          {clipboardMessage && (
+            <div className="rounded-2xl bg-blue-500/10 px-4 py-3 text-center text-sm text-blue-200">
+              {clipboardMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
       <input
         ref={pasteRef}
         type="text"
         aria-hidden="true"
-        className="opacity-0 w-0 h-0 absolute -left-[9999px]"
+        className="absolute -left-[9999px] h-0 w-0 opacity-0"
         onPaste={(e) => handlePasteEvent(e as unknown as React.ClipboardEvent)}
         tabIndex={-1}
       />
 
-      {/* 모바일 붙여넣기 모달 */}
       {showPasteModal && (
         <MobilePasteModal
           onClose={() => setShowPasteModal(false)}
@@ -345,7 +648,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
         />
       )}
 
-      {/* URL 입력 모달 */}
       {showUrlModal && (
         <UrlPasteModal
           onClose={() => setShowUrlModal(false)}
@@ -353,12 +655,11 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
         />
       )}
 
-      {/* QR 플로팅 모달 */}
       {showQrModal && qrUrl && (
-        <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setShowQrModal(false)}>
-          <div className="bg-white text-slate-800 rounded-2xl shadow-xl p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="text-base font-semibold mb-2">QR 코드</div>
-            <img src={qrUrl} alt="QR Code" className="w-60 h-60 object-contain" />
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => setShowQrModal(false)}>
+          <div className="rounded-2xl bg-white p-4 text-slate-800 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-base font-semibold">QR 코드</div>
+            <img src={qrUrl} alt="QR Code" className="h-60 w-60 object-contain" />
             <div className="mt-3 text-right">
               <button className="btn btn-outline px-3 py-1.5" onClick={() => setShowQrModal(false)}>닫기</button>
             </div>
@@ -367,7 +668,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ template, initialSpecs, qrPay
       )}
     </div>
   );
-};
+});
 
 export default ImageEditor;
 
