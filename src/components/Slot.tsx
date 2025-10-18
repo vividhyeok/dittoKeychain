@@ -107,7 +107,7 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
       : { left: 0, top: 0 }),
     width: `${bleedWidth}mm`,
     height: `${bleedHeight}mm`,
-    background: 'white', // 블리드 흰색
+    background: spec.bgColor ?? '#ffffff',
   };
 
   // 4x5의 내부 가시 영역(뷰포트): 35×45mm 고정
@@ -204,8 +204,8 @@ const Slot: React.FC<SlotProps> = ({ part, spec, onUpdate, showGuides = true, on
           <div ref={imageRef} style={imageStyle}>
             {spec.img ? (
               <img src={spec.img} alt="" style={imgStyle} onLoad={handleImageLoad} />
-            ) : (
-              <span>이미지 URL을 입력하세요</span>
+            ) : spec.bgColor ? null : (
+              <span style={{ color: '#64748b' }}>이미지 또는 색상을 선택하세요</span>
             )}
           </div>
         </div>

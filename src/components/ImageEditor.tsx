@@ -64,8 +64,15 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
-  const [controlPanel, setControlPanel] = useState<'root' | 'view' | 'image' | 'input' | 'history'>('root');
+  const [controlPanel, setControlPanel] = useState<'root' | 'view' | 'image' | 'input' | 'history' | 'color'>('root');
   const [viewerZoom, setViewerZoom] = useState(1);
+  const [viewerOffset, setViewerOffset] = useState({ x: 0, y: 0 });
+  const viewerOffsetRef = useRef({ x: 0, y: 0 });
+  const stageScaleRef = useRef(1);
+  const viewerZoomRef = useRef(1);
+  const activeSpec = specs[active];
+  const [colorDraft, setColorDraft] = useState<string>(activeSpec?.bgColor ?? '#ffffff');
+  const [eyeDropperSupported, setEyeDropperSupported] = useState(false);
 
   const generateQR = useCallback(async () => {
     setLoading(true);
@@ -195,13 +202,77 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     setViewerZoom(prev => {
       const factor = direction === 1 ? 1.12 : 1 / 1.12;
       const next = prev * factor;
-      return Math.min(3, Math.max(0.5, Number(next.toFixed(3))));
+      const clamped = Math.min(3, Math.max(0.5, Number(next.toFixed(3))));
+      viewerZoomRef.current = clamped;
+      return clamped;
     });
   }, []);
 
-  const resetViewerZoom = useCallback(() => {
+  const resetViewerView = useCallback(() => {
     setViewerZoom(1);
+    viewerZoomRef.current = 1;
+    setViewerOffset({ x: 0, y: 0 });
+    viewerOffsetRef.current = { x: 0, y: 0 };
   }, []);
+
+  const nudgeViewer = useCallback((dx: number, dy: number) => {
+    setViewerOffset(prev => {
+      const next = { x: prev.x + dx, y: prev.y + dy };
+      viewerOffsetRef.current = next;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const next = activeSpec?.bgColor ?? '#ffffff';
+    setColorDraft(prev => (prev === next ? prev : next));
+  }, [activeSpec?.bgColor]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
+      setEyeDropperSupported(true);
+    }
+  }, []);
+
+  const handleColorChange = useCallback((value: string) => {
+    if (!activeSpec) return;
+    const nextValue = value || '#ffffff';
+    setColorDraft(nextValue);
+    updateSpec(active, (prev) => ({ ...prev, bgColor: nextValue }));
+  }, [active, activeSpec, updateSpec]);
+
+  const resetColor = useCallback(() => {
+    handleColorChange('#ffffff');
+  }, [handleColorChange]);
+
+  const clearColor = useCallback(() => {
+    if (!activeSpec) return;
+    setColorDraft('#ffffff');
+    updateSpec(active, (prev) => {
+      const next = { ...prev } as any;
+      delete next.bgColor;
+      return next;
+    });
+  }, [active, activeSpec, updateSpec]);
+
+  const removeImage = useCallback(() => {
+    if (!activeSpec) return;
+    updateSpec(active, (prev) => ({ ...prev, img: undefined, imgWidth: undefined, imgHeight: undefined }));
+  }, [active, activeSpec, updateSpec]);
+
+  const pickColorFromScreen = useCallback(async () => {
+    if (!eyeDropperSupported || !activeSpec) return;
+    try {
+      const EyeDropperConstructor = (window as any).EyeDropper;
+      const eyeDropper = new EyeDropperConstructor();
+      const result = await eyeDropper.open();
+      if (result?.sRGBHex) {
+        handleColorChange(result.sRGBHex);
+      }
+    } catch (err) {
+      console.warn('색상 추출 실패:', err);
+    }
+  }, [active, activeSpec, eyeDropperSupported, handleColorChange]);
 
   // 키보드 단축키 (이동 방향 반전)
   useEffect(() => {
@@ -259,8 +330,6 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     updateSpec(active, (prev) => ({ ...prev, tx: 0, ty: 0, scale: 1, rot: 0 }));
   }, [active, updateSpec]);
 
-  const PREVIEW_GAP_MM = 2;
-
   const groups = useMemo(() => {
     if (template === 'cd3') {
       return [
@@ -286,6 +355,11 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     if (!groups.length) return undefined;
     return groups.find(group => group.parts.includes(active)) ?? groups[0];
   }, [groups, active]);
+
+  useEffect(() => {
+    setViewerOffset({ x: 0, y: 0 });
+    viewerOffsetRef.current = { x: 0, y: 0 };
+  }, [activeGroup?.key]);
 
   const selectGroup = useCallback((groupKey: string) => {
     const group = groups.find(g => g.key === groupKey);
@@ -313,6 +387,18 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
   const stageInnerRef = useRef<HTMLDivElement>(null);
   const stageTransformRef = useRef<HTMLDivElement>(null);
   const [stageScale, setStageScale] = useState(1);
+
+  useEffect(() => {
+    stageScaleRef.current = stageScale;
+  }, [stageScale]);
+
+  useEffect(() => {
+    viewerZoomRef.current = viewerZoom;
+  }, [viewerZoom]);
+
+  useEffect(() => {
+    viewerOffsetRef.current = viewerOffset;
+  }, [viewerOffset]);
 
   useEffect(() => {
     const wrapper = stageWrapperRef.current;
@@ -344,6 +430,65 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     computeScale();
     return () => ro.disconnect();
   }, [activeGroup, specs, isMobile]);
+
+  useEffect(() => {
+    const wrapper = stageWrapperRef.current;
+    if (!wrapper) return;
+
+    const state = {
+      pointerId: null as number | null,
+      dragging: false,
+      startX: 0,
+      startY: 0,
+      startOffset: { x: 0, y: 0 },
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 && event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+      state.dragging = true;
+      state.pointerId = event.pointerId;
+      state.startX = event.clientX;
+      state.startY = event.clientY;
+      state.startOffset = { ...viewerOffsetRef.current };
+      try { wrapper.setPointerCapture?.(event.pointerId); } catch {}
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!state.dragging) return;
+      const dx = event.clientX - state.startX;
+      const dy = event.clientY - state.startY;
+      const next = {
+        x: state.startOffset.x + dx,
+        y: state.startOffset.y + dy,
+      };
+      viewerOffsetRef.current = next;
+      setViewerOffset(next);
+      event.preventDefault();
+    };
+
+    const endDrag = () => {
+      if (!state.dragging) return;
+      if (state.pointerId != null) {
+        try { wrapper.releasePointerCapture?.(state.pointerId); } catch {}
+      }
+      state.dragging = false;
+      state.pointerId = null;
+    };
+
+    wrapper.addEventListener('pointerdown', onPointerDown);
+    wrapper.addEventListener('pointermove', onPointerMove);
+    wrapper.addEventListener('pointerup', endDrag);
+    wrapper.addEventListener('pointercancel', endDrag);
+    wrapper.addEventListener('pointerleave', endDrag);
+
+    return () => {
+      wrapper.removeEventListener('pointerdown', onPointerDown);
+      wrapper.removeEventListener('pointermove', onPointerMove);
+      wrapper.removeEventListener('pointerup', endDrag);
+      wrapper.removeEventListener('pointercancel', endDrag);
+      wrapper.removeEventListener('pointerleave', endDrag);
+    };
+  }, []);
 
   const activatePart = useCallback((partKey: string) => {
     setActive(partKey);
@@ -396,7 +541,8 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
 
     if (template === 'cd3') {
       if (activeGroup.key === 'front') {
-        const widthMm = CD.panels.front.left.w + PREVIEW_GAP_MM + CD.panels.front.right.w;
+        const gapMm = 0;
+        const widthMm = CD.panels.front.left.w + gapMm + CD.panels.front.right.w;
         const heightMm = CD.panels.front.left.h;
         return {
           title: '앞 커버',
@@ -406,7 +552,7 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
             <>
               {plate(widthMm, heightMm)}
               {renderSlotAt('cd-front-left', 0, 0)}
-              {renderSlotAt('cd-front-right', CD.panels.front.left.w + PREVIEW_GAP_MM, 0)}
+              {renderSlotAt('cd-front-right', CD.panels.front.left.w + gapMm, 0)}
             </>
           ),
         };
@@ -420,11 +566,12 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
           { key: 'cd-back-inside', w: CD.panels.back.inside.w },
         ];
         const heightMm = CD.panels.back.outside.h;
-        const widthMm = sequence.reduce((acc, cur, idx) => acc + cur.w + (idx === 0 ? 0 : PREVIEW_GAP_MM), 0);
+        const gapMm = 0;
+        const widthMm = sequence.reduce((acc, cur, idx) => acc + cur.w + (idx === 0 ? 0 : gapMm), 0);
         const sequenceWithOffsets: Array<{ key: string; w: number; start: number }> = [];
         let running = 0;
         sequence.forEach((item, idx) => {
-          if (idx > 0) running += PREVIEW_GAP_MM;
+          if (idx > 0) running += gapMm;
           sequenceWithOffsets.push({ ...item, start: running });
           running += item.w;
         });
@@ -550,18 +697,26 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
   const openUrlModal = useCallback(() => setShowUrlModal(true), []);
 
   const controlButtonClass = 'flex min-w-[76px] snap-start flex-col items-center justify-center gap-1 rounded-2xl bg-slate-800 px-3 py-3 text-[11px] font-medium text-slate-200 shadow-inner shadow-slate-950/40 transition hover:bg-slate-700 active:scale-95';
+  const hasActivePart = Boolean(activeSpec);
+  const hasCustomColor = Boolean(activeSpec?.bgColor);
+  const hasImage = Boolean(activeSpec?.img);
 
   const rootControls: ControlItem[] = [
     { key: 'panel-view', icon: '🔍', label: '화면 조정', onClick: () => setControlPanel('view') },
     { key: 'panel-image', icon: '🖼️', label: '이미지 조정', onClick: () => setControlPanel('image') },
+    { key: 'panel-color', icon: '🎨', label: '배경 색상', onClick: () => setControlPanel('color') },
     { key: 'panel-input', icon: '�', label: '이미지 불러오기', onClick: () => setControlPanel('input') },
     { key: 'panel-history', icon: '🕓', label: '작업 기록', onClick: () => setControlPanel('history') },
   ];
 
   const viewControls: ControlItem[] = [
-    { key: 'viewer-zoom-in', icon: '�＋', label: '뷰 확대', onClick: () => adjustViewerZoom(1) },
-    { key: 'viewer-zoom-out', icon: '�－', label: '뷰 축소', onClick: () => adjustViewerZoom(-1) },
-    { key: 'viewer-reset', icon: '◻️', label: '뷰 초기화', onClick: resetViewerZoom },
+    { key: 'viewer-zoom-in', icon: '🔍＋', label: '뷰 확대', onClick: () => adjustViewerZoom(1) },
+    { key: 'viewer-zoom-out', icon: '🔍－', label: '뷰 축소', onClick: () => adjustViewerZoom(-1) },
+    { key: 'viewer-left', icon: '⬅️', label: '뷰 왼쪽', onClick: () => nudgeViewer(60, 0) },
+    { key: 'viewer-right', icon: '➡️', label: '뷰 오른쪽', onClick: () => nudgeViewer(-60, 0) },
+    { key: 'viewer-up', icon: '⬆️', label: '뷰 위로', onClick: () => nudgeViewer(0, 60) },
+    { key: 'viewer-down', icon: '⬇️', label: '뷰 아래로', onClick: () => nudgeViewer(0, -60) },
+    { key: 'viewer-reset', icon: '◻️', label: '뷰 초기화', onClick: resetViewerView },
   ];
 
   const imageControls: ControlItem[] = [
@@ -573,6 +728,13 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     { key: 'down', icon: '↓', label: '아래로', onClick: () => nudge(0, -1) },
     { key: 'left', icon: '←', label: '왼쪽', onClick: () => nudge(1, 0) },
     { key: 'right', icon: '→', label: '오른쪽', onClick: () => nudge(-1, 0) },
+  ];
+
+  const colorControls: ControlItem[] = [
+    { key: 'color-eyedrop', icon: '🎯', label: '화면에서 추출', onClick: pickColorFromScreen, disabled: !eyeDropperSupported || !hasActivePart },
+    { key: 'color-reset', icon: '◻️', label: '흰색', onClick: resetColor, disabled: !hasActivePart || (!hasCustomColor && colorDraft === '#ffffff') },
+    { key: 'color-clear', icon: '✕', label: '색상 제거', onClick: clearColor, disabled: !hasCustomColor },
+    { key: 'color-remove-img', icon: '🗑️', label: '이미지 제거', onClick: removeImage, disabled: !hasImage },
   ];
 
   const inputControls: ControlItem[] = [
@@ -591,9 +753,26 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
     ? viewControls
     : controlPanel === 'image'
     ? imageControls
+    : controlPanel === 'color'
+    ? colorControls
     : controlPanel === 'input'
     ? inputControls
     : historyControls;
+
+  const recentColors = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    Object.values(specs).forEach((spec) => {
+      if (spec?.bgColor) {
+        const normalized = spec.bgColor.toLowerCase();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          result.push(normalized);
+        }
+      }
+    });
+    return result.slice(0, 16);
+  }, [specs]);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-slate-900 text-white">
@@ -601,12 +780,12 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
         <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-4 px-4">
           <div
             ref={stageWrapperRef}
-            className="relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-3xl bg-slate-800/60 p-6 shadow-[0_40px_80px_-32px_rgba(15,23,42,0.65)] sm:min-h-[420px]"
+            className="relative flex min-h-[360px] touch-none select-none items-center justify-center overflow-hidden rounded-3xl bg-slate-800/60 p-6 shadow-[0_40px_80px_-32px_rgba(15,23,42,0.65)] sm:min-h-[420px]"
           >
             {preview ? (
               <div
                 ref={stageTransformRef}
-                style={{ transform: `scale(${stageScale * viewerZoom})`, transformOrigin: '50% 50%' }}
+                style={{ transform: `translate(${viewerOffset.x}px, ${viewerOffset.y}px) scale(${stageScale * viewerZoom})`, transformOrigin: '50% 50%' }}
                 className="transition-transform duration-150 ease-out"
               >
                 <div
@@ -643,6 +822,42 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
             </div>
           )}
 
+          {controlPanel === 'color' && activeSpec && (
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-800 px-3 py-3">
+              <input
+                type="color"
+                value={colorDraft}
+                onChange={(e) => handleColorChange(e.target.value)}
+                aria-label="배경 색상 선택"
+                className="h-12 w-12 cursor-pointer rounded-full border border-slate-700 bg-slate-900 p-1"
+              />
+              <div className="flex-1 text-xs text-slate-300">
+                <div className="text-sm font-semibold text-slate-100">배경 색상</div>
+                <div className="text-slate-400">{colorDraft.toUpperCase()}</div>
+                {!eyeDropperSupported && (
+                  <div className="mt-1 text-[10px] text-slate-500">브라우저에서 화면 색상 추출을 지원하지 않을 수 있어요.</div>
+                )}
+                {recentColors.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">다른 파트 색상</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {recentColors.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleColorChange(color)}
+                          className={`h-8 w-8 rounded-full border ${colorDraft.toLowerCase() === color.toLowerCase() ? 'border-blue-400 ring-2 ring-blue-300/60' : 'border-slate-600'}`}
+                          style={{ background: color }}
+                          aria-label={`${color.toUpperCase()} 선택`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {controlPanel !== 'root' && (
             <div className="flex items-center justify-between gap-2">
               <button
@@ -655,7 +870,7 @@ const ImageEditor = React.forwardRef<ImageEditorHandle, ImageEditorProps>(({ tem
               </button>
               {controlPanel === 'view' && (
                 <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                  배율 ×{viewerZoom.toFixed(2)}
+                  배율 ×{viewerZoom.toFixed(2)} · 위치 {Math.round(viewerOffset.x)}px, {Math.round(viewerOffset.y)}px
                 </span>
               )}
             </div>

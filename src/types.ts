@@ -17,6 +17,7 @@ export type ImageSpec = {
   img?: string; // 이미지 URL (텍스트 전용이면 생략)
   imgWidth?: number; // 이미지 실제 너비 (px)
   imgHeight?: number; // 이미지 실제 높이 (px)
+  bgColor?: string; // 배경 단색 (hex)
   tx: number;
   ty: number;
   scale: number;
